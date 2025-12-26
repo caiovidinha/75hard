@@ -8,6 +8,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { useAuth } from '@/lib/hooks/useAuth'
 import { useChallenge } from '@/lib/hooks/useChallenge'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
+import ChallengeHeatmap from '@/components/ChallengeHeatmap'
 import { formatDateForDisplay } from '@/lib/utils/date'
 import { getAll } from '@/lib/indexeddb/operations'
 import { STORES } from '@/lib/constants'
@@ -196,6 +197,11 @@ export default function ProgressPage() {
                 color="from-orange-600 to-red-600"
               />
             </div>
+          </div>
+
+          {/* Challenge Heatmap */}
+          <div className="mb-8">
+            <ChallengeHeatmap dayLogs={dayLogs} totalDays={75} />
           </div>
 
           {/* Progress Chart */}

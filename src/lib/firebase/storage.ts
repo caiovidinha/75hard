@@ -83,21 +83,26 @@ export async function uploadProgressPhoto(
   onProgress?: (progress: number) => void
 ): Promise<{ storagePath: string; url: string }> {
   try {
+    console.log('🔥 uploadProgressPhoto - Iniciando...')
     const storage = await getStorageInstance()
+    console.log('🔥 Storage instance obtida')
     
     // Validate file
     const validation = validateImageFile(file)
     if (!validation.valid) {
       throw new Error(validation.error)
     }
+    console.log('🔥 Arquivo validado')
 
     // Remove EXIF data
     const sanitizedBlob = await removeExifData(file)
+    console.log('🔥 EXIF removido, blob size:', sanitizedBlob.size)
 
     // Create storage path
     const timestamp = Date.now()
     const storagePath = `users/${userId}/progress_photos/${date}_${timestamp}.jpg`
     const storageRef = ref(storage, storagePath)
+    console.log('🔥 Storage path:', storagePath)
 
     // Metadata
     const metadata: UploadMetadata = {
@@ -110,17 +115,28 @@ export async function uploadProgressPhoto(
     }
 
     // Upload file
+    console.log('🔥 Iniciando upload para Firebase Storage...')
     const snapshot = await uploadBytes(storageRef, sanitizedBlob, metadata)
+    console.log('🔥 Upload concluído!')
 
     // Get download URL
+    console.log('🔥 Obtendo URL de download...')
     const url = await getDownloadURL(snapshot.ref)
+    console.log('🔥 URL obtida:', url)
 
-    return {
+    const result = {
       storagePath,
       url,
     }
+    
+    console.log('🔥 ===== RETORNO DO UPLOAD =====')
+    console.log('🔥 storagePath:', result.storagePath)
+    console.log('🔥 url:', result.url)
+    console.log('🔥 url length:', result.url.length)
+    
+    return result
   } catch (error) {
-    console.error('Error uploading progress photo:', error)
+    console.error('❌ Error uploading progress photo:', error)
     throw error
   }
 }

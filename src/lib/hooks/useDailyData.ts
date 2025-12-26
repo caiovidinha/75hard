@@ -502,13 +502,17 @@ export function useDailyData(dateString?: string): UseDailyDataReturn {
   const updatePhoto = async (photoUrl: string, notes?: string) => {
     if (!user || !currentChallenge) throw new Error('Not authenticated')
 
+    console.log('📸 Salvando foto:', { photoUrl, userId: user.id, date, notes })
+
     const newPhoto = await createProgressPhoto({
       userId: user.id,
       challengeId: currentChallenge.id,
       date,
       photoUrl,
-      notes,
+      notes: notes || null,
     })
+    
+    console.log('📸 Foto criada no IndexedDB:', newPhoto)
     await addToSyncQueue('create', COLLECTIONS.PROGRESS_PHOTOS, newPhoto, newPhoto.id)
     await loadAllData()
   }

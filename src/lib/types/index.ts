@@ -215,13 +215,14 @@ export interface DiaryEntry {
 // ==================== PROGRESS PHOTO ====================
 export interface ProgressPhoto {
   id: string
-  dayLogId: string
+  dayLogId?: string
   userId: string
+  challengeId?: string
   date: string
-  storagePath: string
-  thumbnailPath?: string
-  url: string
+  photoUrl: string
+  notes?: string | null
   createdAt: Date
+  updatedAt?: Date
 }
 
 // ==================== SYNC ====================

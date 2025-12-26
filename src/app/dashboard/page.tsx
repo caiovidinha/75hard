@@ -152,7 +152,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Quick Actions */}
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               <Link
                 href="/daily"
                 className="bg-gradient-to-br from-purple-600 to-pink-600 rounded-2xl p-8 hover:shadow-2xl hover:scale-105 transition-all border border-white/20"
@@ -169,6 +169,15 @@ export default function DashboardPage() {
                 <TrendingUp className="w-12 h-12 text-white mb-4" />
                 <h3 className="text-2xl font-bold text-white mb-2">Progresso</h3>
                 <p className="text-blue-100">Veja gráficos e estatísticas</p>
+              </Link>
+
+              <Link
+                href="/gallery"
+                className="bg-gradient-to-br from-green-600 to-emerald-600 rounded-2xl p-8 hover:shadow-2xl hover:scale-105 transition-all border border-white/20"
+              >
+                <Camera className="w-12 h-12 text-white mb-4" />
+                <h3 className="text-2xl font-bold text-white mb-2">Galeria</h3>
+                <p className="text-green-100">Veja suas fotos de progresso</p>
               </Link>
             </div>
 

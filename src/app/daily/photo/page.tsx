@@ -44,7 +44,7 @@ export default function PhotoPage() {
 
   useEffect(() => {
     if (progressPhoto) {
-      setPreviewUrl(progressPhoto.url)
+      setPreviewUrl(progressPhoto.photoUrl)
     }
   }, [progressPhoto])
 
@@ -88,6 +88,11 @@ export default function PhotoPage() {
     try {
       setUploading(true)
 
+      console.log('📸 Iniciando upload...')
+      console.log('📸 UserId:', user.id)
+      console.log('📸 Date:', date)
+      console.log('📸 File:', selectedFile.name, selectedFile.size, 'bytes')
+
       // Upload to Firebase Storage
       const result = await uploadProgressPhoto(
         user.id,
@@ -95,14 +100,25 @@ export default function PhotoPage() {
         selectedFile
       )
 
-      // Save to IndexedDB
+      console.log('📸 ===== RESULTADO DO UPLOAD =====')
+      console.log('📸 URL:', result.url)
+      console.log('📸 StoragePath:', result.storagePath)
+
+      if (!result.url) {
+        throw new Error('Upload retornou URL inválida!')
+      }
+
+      // Save to IndexedDB (using photoUrl field as standard)
+      console.log('📸 Salvando no IndexedDB...')
       await updatePhoto(result.url)
+      
+      console.log('📸 Atualizando dados...')
       await refreshAll()
 
       setSelectedFile(null)
       success('✅ Foto enviada com sucesso!')
     } catch (err) {
-      console.error('Error uploading photo:', err)
+      console.error('❌ Error uploading photo:', err)
       error('Erro ao enviar foto. Tente novamente.')
     } finally {
       setUploading(false)
@@ -112,7 +128,7 @@ export default function PhotoPage() {
   const handleDelete = () => {
     if (confirm('Tem certeza que deseja remover esta foto?')) {
       setSelectedFile(null)
-      setPreviewUrl(progressPhoto?.url || null)
+      setPreviewUrl(progressPhoto?.photoUrl || null)
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
