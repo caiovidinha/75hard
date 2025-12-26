@@ -84,18 +84,6 @@ npm install
 
 Suas credenciais já estão em `src/lib/firebase/config.ts`:
 
-```typescript
-const firebaseConfig = {
-  apiKey: "AIzaSyAm8keDBUgNbhjXAbwqaG_u4QfyUaXnjQ4",
-  authDomain: "hard-fa51a.firebaseapp.com",
-  projectId: "hard-fa51a",
-  storageBucket: "hard-fa51a.firebasestorage.app",
-  messagingSenderId: "610777341056",
-  appId: "1:610777341056:web:8af2f28af379da24395a65",
-  measurementId: "G-LM84XQD19S"
-}
-```
-
 #### 3.3. Deploy das Security Rules
 
 **Firestore Rules:**
