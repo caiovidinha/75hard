@@ -2,7 +2,7 @@
 // Arquivo principal de configuração do Firebase com inicialização singleton
 
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
+import { getAuth, Auth, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 
 // Configuração do Firebase (valores do .env.local)
@@ -53,6 +53,15 @@ if (typeof window !== 'undefined') {
   // Inicializa serviços básicos (Auth e Firestore)
   auth = getAuth(app);
   db = getFirestore(app);
+  
+  // Configura persistência LOCAL para manter login no PWA
+  setPersistence(auth, browserLocalPersistence)
+    .then(() => {
+      console.log('✅ Persistência de Auth configurada: LOCAL (mantém login)');
+    })
+    .catch((error) => {
+      console.error('❌ Erro ao configurar persistência:', error);
+    });
 }
 
 // Lazy loading do Storage (apenas quando necessário, apenas client-side)

@@ -4,6 +4,8 @@ import {
   signOut as firebaseSignOut,
   onAuthStateChanged,
   updateProfile,
+  setPersistence,
+  browserLocalPersistence,
   User as FirebaseUser,
   UserCredential,
 } from 'firebase/auth'
@@ -21,6 +23,9 @@ export async function signUp(
   displayName: string
 ): Promise<AppUser> {
   try {
+    // Garante persistência LOCAL antes do registro
+    await setPersistence(auth, browserLocalPersistence)
+    
     // Create auth user
     const userCredential: UserCredential = await createUserWithEmailAndPassword(
       auth,
@@ -41,6 +46,8 @@ export async function signUp(
 
     await setDoc(doc(db, COLLECTIONS.USERS, userCredential.user.uid), userDoc)
 
+    console.log('✅ Usuário criado com persistência LOCAL')
+
     return {
       id: userCredential.user.uid,
       email,
@@ -59,7 +66,12 @@ export async function signUp(
  */
 export async function signIn(email: string, password: string): Promise<AppUser> {
   try {
+    // Garante persistência LOCAL antes do login
+    await setPersistence(auth, browserLocalPersistence)
+    
     const userCredential = await signInWithEmailAndPassword(auth, email, password)
+    
+    console.log('✅ Login realizado com persistência LOCAL')
     
     // Fetch user data from Firestore
     const userDocRef = doc(db, COLLECTIONS.USERS, userCredential.user.uid)
