@@ -29,7 +29,8 @@ export default function RootLayout({
     <html lang="pt-BR">
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <link rel="icon" href="/favicon.ico" />
+        <link rel="icon" href="/icon.png" />
+        <link rel="apple-touch-icon" href="/icon.png" />
       </head>
       <body className={inter.className}>
         <AuthProvider>

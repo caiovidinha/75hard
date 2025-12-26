@@ -8,13 +8,15 @@ import {
   createChallenge as createChallengeLocal,
   updateChallenge as updateChallengeLocal,
   getDayLogsByChallenge,
+  create,
+  update,
 } from '@/lib/indexeddb/operations'
 import { 
   queryDocuments,
   createDocument,
   updateDocument,
 } from '@/lib/firebase/firestore'
-import { COLLECTIONS } from '@/lib/constants'
+import { COLLECTIONS, STORES } from '@/lib/constants'
 
 interface ChallengeContextType {
   currentChallenge: Challenge | null
@@ -99,10 +101,31 @@ export function ChallengeProvider({ children }: { children: React.ReactNode }) {
 
   const loadDayLogs = async (challengeId: string) => {
     try {
-      const logs = await getDayLogsByChallenge(challengeId)
-      setDayLogs(logs as DayLog[])
+      // Load from Firebase first for fresh data
+      const firebaseLogs = await queryDocuments(COLLECTIONS.DAY_LOGS, [
+        { field: 'challengeId', operator: '==', value: challengeId }
+      ])
+      
+      // Cache in IndexedDB and update state
+      if (firebaseLogs.length > 0) {
+        for (const log of firebaseLogs) {
+          await update<DayLog>(STORES.DAY_LOGS, log as DayLog)
+        }
+        setDayLogs(firebaseLogs as DayLog[])
+      } else {
+        // Fallback to local if Firebase is empty
+        const logs = await getDayLogsByChallenge(challengeId)
+        setDayLogs(logs as DayLog[])
+      }
     } catch (error) {
-      console.error('Error loading day logs:', error)
+      console.error('Error loading day logs from Firebase, using local:', error)
+      // Fallback to local on error
+      try {
+        const logs = await getDayLogsByChallenge(challengeId)
+        setDayLogs(logs as DayLog[])
+      } catch (localError) {
+        console.error('Error loading day logs from local:', localError)
+      }
     }
   }
 

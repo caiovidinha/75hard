@@ -231,48 +231,16 @@ export default function DailyLogPage() {
               color="from-teal-600 to-cyan-600"
               isCompleted={!!weightLog}
             />
-          </div>
 
-          {/* Alcohol Warning Card */}
-          <div className="mt-6">
-            <Link
+            {/* Alcohol */}
+            <TaskCard
+              icon={<Wine className="w-8 h-8" />}
+              title="Zero Álcool"
+              description="Confirmar sem consumo"
               href={`/daily/alcohol?date=${currentDate}`}
-              className={`block rounded-2xl p-6 border-2 transition-all hover:scale-[1.02] ${
-                dayCompliance?.validations.noAlcohol
-                  ? 'bg-green-500/10 border-green-500/30 hover:bg-green-500/15'
-                  : 'bg-red-500/10 border-red-500/30 hover:bg-red-500/15'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className={`p-3 rounded-xl ${
-                    dayCompliance?.validations.noAlcohol
-                      ? 'bg-gradient-to-br from-green-600 to-emerald-600'
-                      : 'bg-gradient-to-br from-red-600 to-rose-600'
-                  }`}>
-                    <Wine className="w-8 h-8 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-white">Zero Álcool</h3>
-                    <p className={`text-sm font-medium ${
-                      dayCompliance?.validations.noAlcohol
-                        ? 'text-green-300'
-                        : 'text-red-300'
-                    }`}>
-                      {dayCompliance?.validations.noAlcohol
-                        ? '✓ Compliant - Sem consumo'
-                        : '✗ Álcool consumido - Dia invalidado'
-                      }
-                    </p>
-                  </div>
-                </div>
-                <div className={`text-3xl ${
-                  dayCompliance?.validations.noAlcohol ? '' : 'animate-pulse'
-                }`}>
-                  {dayCompliance?.validations.noAlcohol ? '✅' : '⚠️'}
-                </div>
-              </div>
-            </Link>
+              color="from-red-600 to-rose-600"
+              isCompleted={dayCompliance?.validations.noAlcohol || false}
+            />
           </div>
 
           {/* Daily Summary */}

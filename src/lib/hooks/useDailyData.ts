@@ -35,8 +35,18 @@ import { queryDocuments } from '@/lib/firebase/firestore'
 import { addToSyncQueue } from '@/lib/sync/sync-queue'
 import { formatDateToString } from '@/lib/utils/date'
 import { validateDayCompliance } from '@/lib/services/validation.service'
-import { calculateDailyNutritionTotal } from '@/lib/utils/calculations'
+import { 
+  calculateDailyNutritionTotal, 
+  calculateNutritionCompliance,
+  calculateWorkoutCompliance,
+  calculateWaterCompliance,
+  calculateTotalPages,
+  isReadingCompliant
+} from '@/lib/utils/calculations'
 import { STORES, COLLECTIONS } from '@/lib/constants'
+
+// Global lock para prevenir criação simultânea de dayLogs
+const dayLogCreationLocks = new Map<string, Promise<DayLog>>()
 
 interface UseDailyDataReturn {
   date: string
@@ -63,7 +73,7 @@ interface UseDailyDataReturn {
 
 export function useDailyData(dateString?: string): UseDailyDataReturn {
   const { user } = useAuth()
-  const { currentChallenge } = useChallenge()
+  const { currentChallenge, refreshDayLogs } = useChallenge()
   const [date] = useState(dateString || formatDateToString(new Date()))
   
   const [dayLog, setDayLog] = useState<DayLog | null>(null)
@@ -75,6 +85,7 @@ export function useDailyData(dateString?: string): UseDailyDataReturn {
   const [diaryEntry, setDiaryEntry] = useState<DiaryEntry | null>(null)
   const [progressPhoto, setProgressPhoto] = useState<ProgressPhoto | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isLoadingData, setIsLoadingData] = useState(false) // Flag para prevenir chamadas duplicadas
 
   // Helper functions to load from Firebase first, fallback to local
   const loadNutritionLogsFromFirebase = async (challengeId: string, date: string): Promise<NutritionLog[]> => {
@@ -146,27 +157,74 @@ export function useDailyData(dateString?: string): UseDailyDataReturn {
     }
   }
 
-  const loadDayLogFromFirebase = async (challengeId: string, date: string): Promise<DayLog | null> => {
-    try {
-      const logs = await queryDocuments<DayLog>(
-        COLLECTIONS.DAY_LOGS,
-        [
-          { field: 'challengeId', operator: '==', value: challengeId },
-          { field: 'date', operator: '==', value: date }
-        ],
-        undefined,
-        1
-      )
-      const log = logs[0] || null
-      // Cache in IndexedDB
-      if (log) {
-        await update(STORES.DAY_LOGS, log)
-      }
-      return log
-    } catch (error) {
-      console.log('Firebase offline, using local data for day log')
-      return getDayLog(challengeId, date) as Promise<DayLog | null>
+  const loadOrCreateDayLog = async (challengeId: string, date: string): Promise<DayLog> => {
+    const lockKey = `${challengeId}_${date}`
+    console.log('🔍 loadOrCreateDayLog iniciado para:', date)
+    
+    // Se já existe uma criação em andamento para esta data, aguarda ela
+    if (dayLogCreationLocks.has(lockKey)) {
+      console.log('⏳ Aguardando criação em andamento para:', date)
+      return await dayLogCreationLocks.get(lockKey)!
     }
+    
+    // FIREBASE É A ÚNICA VERDADE - Busca NO FIREBASE SEMPRE
+    const creationPromise = (async () => {
+      try {
+        console.log('🔍 Buscando no FIREBASE (ÚNICA VERDADE)...')
+        const firebaseLogs = await queryDocuments<DayLog>(
+          COLLECTIONS.DAY_LOGS,
+          [
+            { field: 'challengeId', operator: '==', value: challengeId },
+            { field: 'date', operator: '==', value: date }
+          ]
+        )
+        
+        if (firebaseLogs.length > 0) {
+          console.log('✅ JÁ EXISTE NO FIREBASE:', firebaseLogs[0].id, 'validations:', firebaseLogs[0].validations)
+          if (firebaseLogs.length > 1) {
+            console.error('⚠️ MÚLTIPLOS dayLogs! IDs:', firebaseLogs.map(l => l.id))
+          }
+          // Cache no IndexedDB apenas para consulta local
+          await update(STORES.DAY_LOGS, firebaseLogs[0])
+          dayLogCreationLocks.delete(lockKey)
+          return firebaseLogs[0] as DayLog
+        }
+        
+        // SÓ CRIA SE NÃO EXISTIR NO FIREBASE
+        console.log('🆕 NÃO EXISTE NO FIREBASE - CRIANDO AGORA (ÚNICA VEZ)')
+        const newLog = await createDayLog({
+          userId: user!.id,
+          challengeId,
+          date,
+          dayNumber: 1,
+          compliant: false,
+          validations: {
+            diet: false,
+            workouts: false,
+            water: false,
+            reading: false,
+            photo: false,
+            noAlcohol: true,
+          },
+        })
+        console.log('✅ CRIADO NO FIREBASE:', newLog.id)
+        
+        // Add to sync queue para enviar ao Firebase
+        await addToSyncQueue('create', COLLECTIONS.DAY_LOGS, newLog, newLog.id)
+        
+        dayLogCreationLocks.delete(lockKey)
+        return newLog
+      } catch (error) {
+        console.error('❌ ERRO ao buscar/criar no Firebase:', error)
+        dayLogCreationLocks.delete(lockKey)
+        throw error
+      }
+    })()
+    
+    // Adiciona o lock
+    dayLogCreationLocks.set(lockKey, creationPromise)
+    
+    return await creationPromise
   }
 
   const loadAllData = useCallback(async () => {
@@ -175,32 +233,20 @@ export function useDailyData(dateString?: string): UseDailyDataReturn {
       return
     }
 
-    try {
-      setLoading(true)
+    // Prevent duplicate simultaneous calls
+    if (isLoadingData) {
+      console.log('⏸️ loadAllData já está executando, ignorando chamada duplicada')
+      return
+    }
 
-      // Load or create day log from Firebase first
-      let log = await loadDayLogFromFirebase(currentChallenge.id, date)
-      if (!log) {
-        const newLog = await createDayLog({
-          userId: user.id,
-          challengeId: currentChallenge.id,
-          date,
-          dayNumber: 1, // TODO: Calculate from challenge start date
-          compliant: false,
-          validations: {
-            dietFollowed: false,
-            twoWorkoutsCompleted: false,
-            oneOutdoorWorkout: false,
-            waterConsumed: false,
-            readingCompleted: false,
-            photoTaken: false,
-            noAlcohol: true,
-          },
-        })
-        // Add new day log to sync queue
-        await addToSyncQueue('create', COLLECTIONS.DAY_LOGS, newLog, newLog.id)
-        log = newLog
-      }
+    try {
+      setIsLoadingData(true)
+      setLoading(true)
+      console.log('🚀 Iniciando loadAllData')
+
+      // Use a função robusta que garante apenas 1 dayLog por data
+      const log = await loadOrCreateDayLog(currentChallenge.id, date)
+      console.log('📋 DayLog garantido:', log.id)
       setDayLog(log as DayLog)
 
       // Load all related data from Firebase first, fallback to local
@@ -221,23 +267,39 @@ export function useDailyData(dateString?: string): UseDailyDataReturn {
       setWaterLog(water)
       setDiaryEntry(diary)
       setProgressPhoto(photo)
+      console.log('✅ loadAllData concluído')
     } catch (error) {
-      console.error('Error loading daily data:', error)
+      console.error('❌ Erro em loadAllData:', error)
     } finally {
       setLoading(false)
+      setIsLoadingData(false)
     }
-  }, [user, currentChallenge, date])
+  }, [user, currentChallenge, date]) // Removido isLoadingData das dependências
 
   useEffect(() => {
+    console.log('🎯 useEffect disparado - user:', !!user, 'challenge:', !!currentChallenge, 'date:', date)
     loadAllData()
-  }, [loadAllData])
+  }, [user, currentChallenge, date]) // Chama apenas quando user, challenge ou date mudam
 
   // Recalculate compliance whenever data changes
   useEffect(() => {
-    if (!dayLog || !currentChallenge) return
+    // Não recalcula se ainda está carregando dados iniciais
+    if (!dayLog || !currentChallenge || loading || isLoadingData) {
+      console.log('⏭️ Pulando recálculo (carregando dados iniciais)')
+      return
+    }
 
-    const recalculateCompliance = async () => {
+    console.log('📊 Preparando recálculo de compliance...')
+    
+    // Debounce the recalculation to avoid multiple rapid updates
+    const timeoutId = setTimeout(async () => {
+      console.log('🔄 Recalculando compliance agora...')
       const nutritionTotal = calculateDailyNutritionTotal(nutritionLogs)
+      const nutritionCompliance = calculateNutritionCompliance(nutritionTotal, currentChallenge.dietConfig)
+      const workoutsCompliance = calculateWorkoutCompliance(workouts)
+      const waterCompliance = calculateWaterCompliance(waterLog ? [waterLog] : [])
+      const totalPages = calculateTotalPages(readingLog ? [readingLog] : [])
+      const readingCompliant = isReadingCompliant(totalPages)
       
       // Build a proper DailySummary for validation
       const summary = {
@@ -248,64 +310,20 @@ export function useDailyData(dateString?: string): UseDailyDataReturn {
         nutrition: {
           logs: nutritionLogs,
           total: nutritionTotal,
-          compliance: {
-            isCompliant: false,
-            calories: {
-              consumed: nutritionTotal.calories,
-              limit: currentChallenge.dietConfig.dailyCalories,
-              remaining: currentChallenge.dietConfig.dailyCalories - nutritionTotal.calories,
-              percentage: (nutritionTotal.calories / currentChallenge.dietConfig.dailyCalories) * 100,
-              exceeded: nutritionTotal.calories > currentChallenge.dietConfig.dailyCalories,
-            },
-            protein: {
-              consumed: nutritionTotal.protein,
-              limit: currentChallenge.dietConfig.protein,
-              remaining: currentChallenge.dietConfig.protein - nutritionTotal.protein,
-              percentage: (nutritionTotal.protein / currentChallenge.dietConfig.protein) * 100,
-              exceeded: nutritionTotal.protein > currentChallenge.dietConfig.protein,
-            },
-            carbs: {
-              consumed: nutritionTotal.carbs,
-              limit: currentChallenge.dietConfig.carbs,
-              remaining: currentChallenge.dietConfig.carbs - nutritionTotal.carbs,
-              percentage: (nutritionTotal.carbs / currentChallenge.dietConfig.carbs) * 100,
-              exceeded: nutritionTotal.carbs > currentChallenge.dietConfig.carbs,
-            },
-            fat: {
-              consumed: nutritionTotal.fat,
-              limit: currentChallenge.dietConfig.fat,
-              remaining: currentChallenge.dietConfig.fat - nutritionTotal.fat,
-              percentage: (nutritionTotal.fat / currentChallenge.dietConfig.fat) * 100,
-              exceeded: nutritionTotal.fat > currentChallenge.dietConfig.fat,
-            },
-          },
+          compliance: nutritionCompliance,
         },
         workouts: {
           logs: workouts,
-          compliance: {
-            isCompliant: false,
-            totalWorkouts: workouts.length,
-            validWorkouts: 0,
-            outdoorWorkouts: 0,
-            totalDuration: 0,
-            requirements: { minWorkouts: 2, minDuration: 45, minOutdoor: 1 },
-            validation: { hasEnoughWorkouts: false, hasValidDurations: false, hasOutdoorWorkout: false },
-          },
+          compliance: workoutsCompliance,
         },
         water: {
           logs: waterLog ? [waterLog] : [],
-          compliance: { 
-            isCompliant: false, 
-            consumed: waterLog?.amount || 0, 
-            target: 3780,
-            remaining: 3780 - (waterLog?.amount || 0),
-            percentage: ((waterLog?.amount || 0) / 3780) * 100,
-          },
+          compliance: waterCompliance,
         },
         reading: {
           logs: readingLog ? [readingLog] : [],
-          totalPages: readingLog?.pages || 0,
-          isCompliant: false,
+          totalPages,
+          isCompliant: readingCompliant,
         },
         photo: progressPhoto || undefined,
         diary: diaryEntry || undefined,
@@ -327,6 +345,11 @@ export function useDailyData(dateString?: string): UseDailyDataReturn {
         isCompliant !== dayLog.compliant ||
         JSON.stringify(updatedValidations) !== JSON.stringify(dayLog.validations)
       ) {
+        console.log('🔄 Atualizando validações:', {
+          validations: updatedValidations,
+          compliant: isCompliant,
+          timestamp: new Date().toLocaleTimeString()
+        })
         const updatedLog = {
           ...dayLog,
           compliant: isCompliant,
@@ -336,11 +359,15 @@ export function useDailyData(dateString?: string): UseDailyDataReturn {
         await updateDayLog(dayLog.id, updatedLog)
         await addToSyncQueue('update', COLLECTIONS.DAY_LOGS, updatedLog, updatedLog.id)
         setDayLog(updatedLog)
+        // Refresh dayLogs in ChallengeContext so progress page sees updated validations
+        refreshDayLogs?.()
+      } else {
+        console.log('✅ Validações já estão corretas, sem necessidade de atualizar')
       }
-    }
+    }, 500) // Wait 500ms after last change before recalculating
 
-    recalculateCompliance()
-  }, [dayLog, currentChallenge, nutritionLogs, workouts, waterLog, readingLog, progressPhoto])
+    return () => clearTimeout(timeoutId)
+  }, [dayLog, currentChallenge, nutritionLogs, workouts, waterLog, readingLog, progressPhoto, loading, isLoadingData, refreshDayLogs])
 
   const addNutritionLog = async (
     log: Omit<NutritionLog, 'id' | 'userId' | 'challengeId' | 'createdAt' | 'updatedAt' | 'synced'>

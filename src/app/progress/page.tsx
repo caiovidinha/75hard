@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, TrendingUp, Calendar, Target, Award, Book, Dumbbell, Droplets, Utensils } from 'lucide-react'
+import { ArrowLeft, TrendingUp, Calendar, Target, Award, Book, Dumbbell, Droplets, Utensils, ChevronDown, ChevronUp, Check, X } from 'lucide-react'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { useChallenge } from '@/lib/hooks/useChallenge'
@@ -22,6 +22,17 @@ export default function ProgressPage() {
   const [waterData, setWaterData] = useState<WaterLog[]>([])
   const [workoutData, setWorkoutData] = useState<Workout[]>([])
   const [loadingWeight, setLoadingWeight] = useState(true)
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set())
+
+  const toggleDayDetails = (logId: string) => {
+    const newExpanded = new Set(expandedDays)
+    if (newExpanded.has(logId)) {
+      newExpanded.delete(logId)
+    } else {
+      newExpanded.add(logId)
+    }
+    setExpandedDays(newExpanded)
+  }
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -202,7 +213,7 @@ export default function ProgressPage() {
                   <YAxis 
                     stroke="rgba(255,255,255,0.5)"
                     style={{ fontSize: '12px' }}
-                    domain={[0, 7]}
+                    domain={[0, 6]}
                   />
                   <Tooltip 
                     contentStyle={{ 
@@ -315,33 +326,88 @@ export default function ProgressPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {dayLogs.slice(-10).reverse().map((log) => (
-                  <div
-                    key={log.id}
-                    className={`p-4 rounded-lg border ${
-                      log.compliant
-                        ? 'bg-green-500/10 border-green-500/30'
-                        : 'bg-red-500/10 border-red-500/30'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-white font-semibold">Dia {log.dayNumber}</p>
-                        <p className="text-gray-300 text-sm">
-                          {formatDateForDisplay(log.date)}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className={`font-semibold ${log.compliant ? 'text-green-300' : 'text-red-300'}`}>
-                          {log.compliant ? '✓ Completo' : '✗ Falhou'}
-                        </p>
-                        <p className="text-gray-400 text-sm">
-                          {Object.values(log.validations).filter(Boolean).length}/7 tarefas
-                        </p>
+                {dayLogs.slice(-10).reverse().map((log) => {
+                  const isExpanded = expandedDays.has(log.id)
+                  const taskLabels: Record<keyof typeof log.validations, string> = {
+                    diet: 'Dieta',
+                    workouts: 'Treinos',
+                    water: 'Água',
+                    reading: 'Leitura',
+                    photo: 'Foto',
+                    noAlcohol: 'Sem Álcool'
+                  }
+                  
+                  return (
+                    <div
+                      key={log.id}
+                      className={`rounded-lg border ${
+                        log.compliant
+                          ? 'bg-green-500/10 border-green-500/30'
+                          : 'bg-red-500/10 border-red-500/30'
+                      }`}
+                    >
+                      <div className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-white font-semibold">Dia {log.dayNumber}</p>
+                            <p className="text-gray-300 text-sm">
+                              {formatDateForDisplay(log.date)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <p className={`font-semibold ${log.compliant ? 'text-green-300' : 'text-red-300'}`}>
+                                {log.compliant ? '✓ Completo' : '✗ Falhou'}
+                              </p>
+                              <p className="text-gray-400 text-sm">
+                                {Object.values(log.validations).filter(Boolean).length}/{Object.keys(log.validations).length} tarefas
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => toggleDayDetails(log.id)}
+                              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                              aria-label={isExpanded ? 'Ocultar detalhes' : 'Ver detalhes'}
+                            >
+                              {isExpanded ? (
+                                <ChevronUp className="w-5 h-5 text-gray-300" />
+                              ) : (
+                                <ChevronDown className="w-5 h-5 text-gray-300" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {isExpanded && (
+                          <div className="mt-4 pt-4 border-t border-white/10">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                              {(Object.keys(log.validations) as Array<keyof typeof log.validations>).map((key) => (
+                                <div
+                                  key={key}
+                                  className={`flex items-center gap-2 p-2 rounded-lg ${
+                                    log.validations[key]
+                                      ? 'bg-green-500/20'
+                                      : 'bg-red-500/20'
+                                  }`}
+                                >
+                                  {log.validations[key] ? (
+                                    <Check className="w-4 h-4 text-green-400 flex-shrink-0" />
+                                  ) : (
+                                    <X className="w-4 h-4 text-red-400 flex-shrink-0" />
+                                  )}
+                                  <span className={`text-sm ${
+                                    log.validations[key] ? 'text-green-200' : 'text-red-200'
+                                  }`}>
+                                    {taskLabels[key]}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
