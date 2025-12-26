@@ -1,0 +1,42 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // ==================== HELPER FUNCTIONS ====================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isValidImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+    
+    function isValidSize() {
+      return request.resource.size < 5 * 1024 * 1024; // 5MB
+    }
+    
+    // ==================== PROGRESS PHOTOS ====================
+    
+    match /users/{userId}/progress_photos/{photoId} {
+      // Only owner can read their photos
+      allow read: if isOwner(userId);
+      
+      // Only owner can upload their photos
+      // Must be an image and under 5MB
+      allow write: if isOwner(userId)
+        && isValidImage()
+        && isValidSize();
+    }
+    
+    // ==================== DENY ALL OTHER PATHS ====================
+    
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

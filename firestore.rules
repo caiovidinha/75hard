@@ -1,0 +1,210 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ==================== HELPER FUNCTIONS ====================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isOwnerOfResource() {
+      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+    
+    function isOwnerOfRequest() {
+      return isAuthenticated() && request.auth.uid == request.resource.data.userId;
+    }
+    
+    // Check if date is today or in the future
+    function isTodayOrFuture(dateString) {
+      let inputDate = timestamp.date(int(dateString.split('-')[0]), 
+                                       int(dateString.split('-')[1]), 
+                                       int(dateString.split('-')[2]));
+      let today = request.time.date();
+      return inputDate >= today;
+    }
+    
+    // Prevent backdating - date must be today or future
+    function canEditDate(dateString) {
+      return isTodayOrFuture(dateString);
+    }
+    
+    // ==================== USERS COLLECTION ====================
+    
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) 
+        && request.resource.data.keys().hasAll(['email', 'displayName']);
+      allow update: if isOwner(userId);
+      allow delete: if false; // Users cannot be deleted
+    }
+    
+    // ==================== CHALLENGES COLLECTION ====================
+    
+    match /challenges/{challengeId} {
+      allow read: if isOwnerOfResource();
+      
+      allow create: if isOwnerOfRequest()
+        && request.resource.data.keys().hasAll([
+          'userId', 'startDate', 'status', 'currentDay', 'dietConfig'
+        ])
+        && request.resource.data.status == 'active'
+        && request.resource.data.currentDay == 1
+        && request.resource.data.dietConfig.keys().hasAll([
+          'dailyCalories', 'protein', 'carbs', 'fat'
+        ]);
+      
+      allow update: if isOwnerOfResource()
+        && request.resource.data.userId == resource.data.userId; // Cannot change owner
+      
+      allow delete: if false; // Challenges cannot be deleted
+    }
+    
+    // ==================== DAY LOGS ====================
+    // Critical: NO retroactive editing allowed
+    
+    match /day_logs/{dayLogId} {
+      allow read: if isOwnerOfResource();
+      
+      allow create: if isOwnerOfRequest()
+        && request.resource.data.keys().hasAll([
+          'challengeId', 'userId', 'date', 'dayNumber', 'validations'
+        ])
+        && canEditDate(request.resource.data.date);
+      
+      // Can only update TODAY's log
+      allow update: if isOwnerOfResource()
+        && canEditDate(resource.data.date)
+        && request.resource.data.date == resource.data.date; // Cannot change date
+      
+      allow delete: if false; // Day logs cannot be deleted
+    }
+    
+    // ==================== NUTRITION LOGS ====================
+    
+    match /nutrition_logs/{nutritionId} {
+      allow read: if isOwnerOfResource();
+      
+      allow create: if isOwnerOfRequest()
+        && request.resource.data.keys().hasAll([
+          'dayLogId', 'userId', 'date', 'calories', 'protein', 'carbs', 'fat'
+        ])
+        && canEditDate(request.resource.data.date);
+      
+      allow update: if isOwnerOfResource()
+        && canEditDate(resource.data.date);
+      
+      allow delete: if isOwnerOfResource()
+        && canEditDate(resource.data.date);
+    }
+    
+    // ==================== WORKOUTS ====================
+    
+    match /workouts/{workoutId} {
+      allow read: if isOwnerOfResource();
+      
+      allow create: if isOwnerOfRequest()
+        && request.resource.data.keys().hasAll([
+          'dayLogId', 'userId', 'date', 'type', 'duration', 'intensity', 'outdoor'
+        ])
+        && request.resource.data.duration >= 0
+        && canEditDate(request.resource.data.date);
+      
+      allow update: if isOwnerOfResource()
+        && canEditDate(resource.data.date);
+      
+      allow delete: if isOwnerOfResource()
+        && canEditDate(resource.data.date);
+    }
+    
+    // ==================== WEIGHT LOGS ====================
+    
+    match /weight_logs/{weightId} {
+      allow read: if isOwnerOfResource();
+      
+      allow create: if isOwnerOfRequest()
+        && request.resource.data.keys().hasAll(['userId', 'date', 'weight'])
+        && request.resource.data.weight > 0;
+      
+      allow update: if isOwnerOfResource();
+      
+      allow delete: if isOwnerOfResource();
+    }
+    
+    // ==================== READING LOGS ====================
+    
+    match /reading_logs/{readingId} {
+      allow read: if isOwnerOfResource();
+      
+      allow create: if isOwnerOfRequest()
+        && request.resource.data.keys().hasAll([
+          'dayLogId', 'userId', 'date', 'bookTitle', 'pages'
+        ])
+        && request.resource.data.pages >= 0
+        && canEditDate(request.resource.data.date);
+      
+      allow update: if isOwnerOfResource()
+        && canEditDate(resource.data.date);
+      
+      allow delete: if isOwnerOfResource()
+        && canEditDate(resource.data.date);
+    }
+    
+    // ==================== WATER LOGS ====================
+    
+    match /water_logs/{waterId} {
+      allow read: if isOwnerOfResource();
+      
+      allow create: if isOwnerOfRequest()
+        && request.resource.data.keys().hasAll([
+          'dayLogId', 'userId', 'date', 'amount'
+        ])
+        && request.resource.data.amount > 0
+        && canEditDate(request.resource.data.date);
+      
+      allow update: if isOwnerOfResource()
+        && canEditDate(resource.data.date);
+      
+      allow delete: if isOwnerOfResource()
+        && canEditDate(resource.data.date);
+    }
+    
+    // ==================== DIARY ENTRIES ====================
+    
+    match /diary_entries/{entryId} {
+      allow read: if isOwnerOfResource();
+      
+      allow create: if isOwnerOfRequest()
+        && request.resource.data.keys().hasAll([
+          'dayLogId', 'userId', 'date', 'text'
+        ])
+        && canEditDate(request.resource.data.date);
+      
+      allow update: if isOwnerOfResource()
+        && canEditDate(resource.data.date);
+      
+      allow delete: if isOwnerOfResource()
+        && canEditDate(resource.data.date);
+    }
+    
+    // ==================== PROGRESS PHOTOS ====================
+    
+    match /progress_photos/{photoId} {
+      allow read: if isOwnerOfResource();
+      
+      allow create: if isOwnerOfRequest()
+        && request.resource.data.keys().hasAll([
+          'dayLogId', 'userId', 'date', 'storagePath', 'url'
+        ]);
+      
+      // Photos cannot be updated or deleted
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}
