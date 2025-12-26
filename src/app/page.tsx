@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowRight, CheckCircle2, Shield, Wifi, Database } from 'lucide-react'
+import { ArrowRight, CheckCircle2, Shield, Database, TrendingUp } from 'lucide-react'
 
 export default function HomePage() {
   return (
@@ -11,7 +11,7 @@ export default function HomePage() {
             75 Hard Challenge
           </h1>
           <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
-            PWA completo, seguro e offline-first para tracking rigoroso e auditável 
+            PWA completo e seguro para tracking rigoroso e auditável 
             do desafio 75 Hard com controle detalhado de dieta, treinos e hábitos.
           </p>
           <div className="flex gap-4 justify-center">
@@ -34,19 +34,19 @@ export default function HomePage() {
         {/* Features Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
           <FeatureCard
-            icon={<Wifi className="w-8 h-8" />}
-            title="Offline-First"
-            description="Funciona 100% offline com sincronização automática"
+            icon={<TrendingUp className="w-8 h-8" />}
+            title="Acompanhamento"
+            description="Monitore seu progresso em tempo real"
           />
           <FeatureCard
             icon={<Shield className="w-8 h-8" />}
             title="Seguro"
-            description="Security Rules restritivas e dados criptografados"
+            description="Dados protegidos e criptografados"
           />
           <FeatureCard
             icon={<Database className="w-8 h-8" />}
             title="Auditável"
-            description="Histórico completo preservado e imutável"
+            description="Histórico completo preservado"
           />
           <FeatureCard
             icon={<CheckCircle2 className="w-8 h-8" />}
@@ -91,11 +91,6 @@ export default function HomePage() {
               title="Álcool"
               description="Zero álcool durante 75 dias"
             />
-          </div>
-          <div className="mt-8 text-center">
-            <p className="text-yellow-300 font-semibold text-lg">
-              ⚠️ Falhar em qualquer item = Reset para o dia 1
-            </p>
           </div>
         </div>
 
