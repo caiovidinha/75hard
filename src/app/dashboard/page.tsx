@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { LogOut, Calendar, TrendingUp, CheckCircle2, AlertCircle, Trophy, Flame, Plus, Utensils, Dumbbell, Droplets, Book, Camera } from 'lucide-react'
+import { LogOut, Calendar, TrendingUp, CheckCircle2, AlertCircle, Trophy, Flame, Plus, Utensils, Dumbbell, Droplets, Book, Camera, RotateCcw } from 'lucide-react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { useChallenge } from '@/lib/hooks/useChallenge'
 import { useSync } from '@/lib/hooks/useSync'
@@ -18,6 +18,7 @@ export default function DashboardPage() {
   const { currentChallenge, challenges, loading: challengeLoading } = useChallenge()
   const { status: syncStatus, pendingCount, isOnline } = useSync()
   const [showFabMenu, setShowFabMenu] = useState(false)
+  const [showRestartModal, setShowRestartModal] = useState(false)
 
   const today = formatDateToString(new Date())
   
@@ -37,6 +38,131 @@ export default function DashboardPage() {
       router.push('/login')
     }
   }, [user, authLoading, router])
+
+  const handleRestartChallenge = () => {
+    setShowRestartModal(true)
+  }
+
+  const confirmRestartChallenge = async () => {
+    if (!currentChallenge || !user) return
+    
+    try {
+      console.log('🔄 Iniciando reset completo do desafio...')
+      
+      // Importar funções necessárias
+      const { queryDocuments, deleteDocument } = await import('@/lib/firebase/firestore')
+      const { COLLECTIONS } = await import('@/lib/constants')
+      const { getDB } = await import('@/lib/indexeddb/db')
+      
+      const challengeId = currentChallenge.id
+      
+      // 1. Deletar todos os dayLogs
+      console.log('🗑️ Deletando dayLogs...')
+      const dayLogs = await queryDocuments(
+        COLLECTIONS.DAY_LOGS,
+        [{ field: 'challengeId', operator: '==', value: challengeId }]
+      )
+      for (const log of dayLogs) {
+        await deleteDocument(COLLECTIONS.DAY_LOGS, (log as any).id)
+      }
+      
+      // 2. Deletar todas as nutrition logs
+      console.log('🗑️ Deletando nutrition logs...')
+      const nutritionLogs = await queryDocuments(
+        COLLECTIONS.NUTRITION_LOGS,
+        [{ field: 'challengeId', operator: '==', value: challengeId }]
+      )
+      for (const log of nutritionLogs) {
+        await deleteDocument(COLLECTIONS.NUTRITION_LOGS, (log as any).id)
+      }
+      
+      // 3. Deletar workouts
+      console.log('🗑️ Deletando workouts...')
+      const workouts = await queryDocuments(
+        COLLECTIONS.WORKOUTS,
+        [{ field: 'challengeId', operator: '==', value: challengeId }]
+      )
+      for (const workout of workouts) {
+        await deleteDocument(COLLECTIONS.WORKOUTS, (workout as any).id)
+      }
+      
+      // 4. Deletar weight logs
+      console.log('🗑️ Deletando weight logs...')
+      const weightLogs = await queryDocuments(
+        COLLECTIONS.WEIGHT_LOGS,
+        [{ field: 'challengeId', operator: '==', value: challengeId }]
+      )
+      for (const log of weightLogs) {
+        await deleteDocument(COLLECTIONS.WEIGHT_LOGS, (log as any).id)
+      }
+      
+      // 5. Deletar reading logs
+      console.log('🗑️ Deletando reading logs...')
+      const readingLogs = await queryDocuments(
+        COLLECTIONS.READING_LOGS,
+        [{ field: 'challengeId', operator: '==', value: challengeId }]
+      )
+      for (const log of readingLogs) {
+        await deleteDocument(COLLECTIONS.READING_LOGS, (log as any).id)
+      }
+      
+      // 6. Deletar water logs
+      console.log('🗑️ Deletando water logs...')
+      const waterLogs = await queryDocuments(
+        COLLECTIONS.WATER_LOGS,
+        [{ field: 'challengeId', operator: '==', value: challengeId }]
+      )
+      for (const log of waterLogs) {
+        await deleteDocument(COLLECTIONS.WATER_LOGS, (log as any).id)
+      }
+      
+      // 7. Deletar diary entries
+      console.log('🗑️ Deletando diary entries...')
+      const diaryEntries = await queryDocuments(
+        COLLECTIONS.DIARY_ENTRIES,
+        [{ field: 'challengeId', operator: '==', value: challengeId }]
+      )
+      for (const entry of diaryEntries) {
+        await deleteDocument(COLLECTIONS.DIARY_ENTRIES, (entry as any).id)
+      }
+      
+      // 8. Deletar progress photos
+      console.log('🗑️ Deletando progress photos...')
+      const photos = await queryDocuments(
+        COLLECTIONS.PROGRESS_PHOTOS,
+        [{ field: 'challengeId', operator: '==', value: challengeId }]
+      )
+      for (const photo of photos) {
+        await deleteDocument(COLLECTIONS.PROGRESS_PHOTOS, (photo as any).id)
+      }
+      
+      // 9. Deletar o challenge
+      console.log('🗑️ Deletando challenge...')
+      await deleteDocument(COLLECTIONS.CHALLENGES, challengeId)
+      
+      // 10. Limpar IndexedDB
+      console.log('🗑️ Limpando IndexedDB...')
+      const db = await getDB()
+      await db.clear('dayLogs')
+      await db.clear('nutritionLogs')
+      await db.clear('workouts')
+      await db.clear('weightLogs')
+      await db.clear('readingLogs')
+      await db.clear('waterLogs')
+      await db.clear('diaryEntries')
+      await db.clear('progressPhotos')
+      await db.clear('challenges')
+      await db.clear('syncQueue')
+      
+      console.log('✅ Reset completo!')
+      
+      // Recarregar a página para refletir as mudanças
+      window.location.href = '/challenge/new'
+    } catch (error) {
+      console.error('❌ Erro ao reiniciar desafio:', error)
+      alert('Erro ao reiniciar desafio. Tente novamente.')
+    }
+  }
 
   if (authLoading || challengeLoading) {
     return <LoadingSpinner fullScreen text="Carregando dashboard..." size="lg" />
@@ -83,6 +209,18 @@ export default function DashboardPage() {
                   {pendingCount > 0 && ` (${pendingCount} pendentes)`}
                 </span>
               </div>
+
+              {/* Restart Challenge Button */}
+              {currentChallenge && (
+                <button
+                  onClick={handleRestartChallenge}
+                  className="flex items-center gap-2 px-4 py-2 bg-orange-600/20 hover:bg-orange-600/30 text-orange-300 rounded-lg transition-colors border border-orange-500/30"
+                  title="Reiniciar Desafio"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span className="hidden md:inline">Reiniciar</span>
+                </button>
+              )}
 
               <button
                 onClick={handleSignOut}
@@ -327,6 +465,46 @@ export default function DashboardPage() {
           <Plus className="w-8 h-8 text-white" />
         </button>
       </div>
+
+      {/* Restart Challenge Modal */}
+      {showRestartModal && (
+        <div 
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => setShowRestartModal(false)}
+        >
+          <div 
+            className="bg-gradient-to-br from-slate-900 to-purple-900 rounded-2xl p-8 max-w-md w-full border border-white/20"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <RotateCcw className="w-8 h-8 text-orange-400" />
+              <h2 className="text-2xl font-bold text-white">Reiniciar Desafio</h2>
+            </div>
+            
+            <p className="text-gray-300 mb-6">
+              Você tem certeza que deseja reiniciar o desafio? 
+              <strong className="text-white block mt-2">
+                Todo o progresso atual será perdido e um novo desafio será iniciado.
+              </strong>
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowRestartModal(false)}
+                className="flex-1 px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmRestartChallenge}
+                className="flex-1 px-4 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors font-semibold"
+              >
+                Sim, Reiniciar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

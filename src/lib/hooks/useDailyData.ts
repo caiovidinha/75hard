@@ -192,11 +192,35 @@ export function useDailyData(dateString?: string): UseDailyDataReturn {
         
         // SÓ CRIA SE NÃO EXISTIR NO FIREBASE
         console.log('🆕 NÃO EXISTE NO FIREBASE - CRIANDO AGORA (ÚNICA VEZ)')
+        
+        // Calcular dayNumber baseado na data de início do desafio
+        // Normalizar ambas as datas para meia-noite UTC para evitar problemas de timezone
+        const startDateObj = new Date(currentChallenge!.startDate)
+        startDateObj.setUTCHours(0, 0, 0, 0)
+        
+        // Parse da data string no formato YYYY-MM-DD
+        const [year, month, day] = date.split('-').map(Number)
+        const currentDateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
+        
+        const diffTime = currentDateObj.getTime() - startDateObj.getTime()
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
+        const calculatedDayNumber = diffDays + 1 // Dia 1 é a data de início
+        
+        console.log('📅 Calculando dayNumber:', {
+          startDate: currentChallenge!.startDate,
+          currentDate: date,
+          startDateNormalized: startDateObj.toISOString(),
+          currentDateNormalized: currentDateObj.toISOString(),
+          diffTime,
+          diffDays,
+          calculatedDayNumber
+        })
+        
         const newLog = await createDayLog({
           userId: user!.id,
           challengeId,
           date,
-          dayNumber: 1,
+          dayNumber: calculatedDayNumber,
           compliant: false,
           validations: {
             diet: false,
@@ -207,7 +231,7 @@ export function useDailyData(dateString?: string): UseDailyDataReturn {
             noAlcohol: true,
           },
         })
-        console.log('✅ CRIADO NO FIREBASE:', newLog.id)
+        console.log('✅ CRIADO NO FIREBASE:', newLog.id, 'dayNumber:', newLog.dayNumber)
         
         // Add to sync queue para enviar ao Firebase
         await addToSyncQueue('create', COLLECTIONS.DAY_LOGS, newLog, newLog.id)

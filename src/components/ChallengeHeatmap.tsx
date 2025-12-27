@@ -10,14 +10,25 @@ interface ChallengeHeatmapProps {
 }
 
 export default function ChallengeHeatmap({ dayLogs, totalDays = 75 }: ChallengeHeatmapProps) {
+  // Debug
+  console.log('🗺️ Heatmap - dayLogs recebidos:', dayLogs.map(log => ({
+    id: log.id,
+    date: log.date,
+    dayNumber: log.dayNumber,
+    compliant: log.compliant
+  })))
+  
   // Criar array de 75 dias
   const days = Array.from({ length: totalDays }, (_, i) => i + 1)
   
   // Mapear dayLogs por dayNumber
   const logsByDay = new Map<number, DayLog>()
   dayLogs.forEach(log => {
+    console.log(`🗺️ Mapeando dia ${log.dayNumber}:`, log.date, log.compliant ? '✅' : '❌')
     logsByDay.set(log.dayNumber, log)
   })
+  
+  console.log('🗺️ Mapa de dias:', Array.from(logsByDay.keys()))
 
   const getDayStatus = (dayNumber: number): 'completed' | 'failed' | 'pending' => {
     const log = logsByDay.get(dayNumber)
